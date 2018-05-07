@@ -1,0 +1,91 @@
+--[[
+  GPS Minimap 2.0 (LDDMAP2)
+  by LDDestroier
+--]]
+
+local tArg = {...}
+local id = os.getComputerID()
+local modem = {}
+local scr_x, scr_y = term.getSize()
+local defaultTimeout = 3
+local port = gps.CHANNEL_GPS
+
+local tsv = function(visible)
+	if term.current().setVisible then
+		term.current().setVisible(visible)
+	end
+end
+
+local waitForModem = function(time)
+	local tID, evt, rID = os.startTimer(time or 1)
+	while true do
+		evt, rID = os.pullEvent()
+		if evt == "timer" then
+			if rID == tID then
+				return false
+			end
+		elseif evt == "peripheral" then
+			if peripheral.getType(rID) == "modem" then
+				return true
+			end
+		end
+	end
+end
+
+local getModem = function(timeout) --returns a working modem, prioritizes use of wireless modem
+	if modem.open then return modem end
+	local modems = {peripheral.find("modem")}
+	if #modems == 0 then
+		if waitForModem(timeout or defaultTimeout) then
+			modems = {peripheral.find("modem")}
+		else
+			error("No modem found...")
+		end
+	end
+	for a = 1, #modems do
+		if modems[a].isWireless() then
+			modems[a].open(port)
+			return modems[a]
+		end
+	end
+	modems[1].open(port)
+	return modems[1]
+end
+
+modem = getModem()
+
+local copyTable = function(tbl)
+	local output = {}
+	for k,v in pairs(tbl) do
+		output[k] = v
+	end
+	return output
+end
+
+local player = {
+	x = nil,			actual X position
+	y = nil,			actual Y position
+	z = nil,			actual Z position
+	xvel = nil,			speed in X axis
+	yvel = nil,			speed in Y axis
+	zvel = nil,			speed in Z axis
+	yaw = nil,			0-360 degree X,Z direction of movement
+	pitch = nil,		0-360 degree [X/Z],Y direction of movement
+	grounded = nil,		whether or not you are on ground
+}
+
+local oldePlayer = copyTable(player)
+
+local updatePlayer = function(timeout)
+	player.x, player.y, player.z = gps.locate(timeout or defaultTimeout)
+	if not player.x then
+		player.y, player.z, player.xvel, player.yvel, player.zvel = nil, nil, nil, nil, nil
+	elseif player.xvel and player.yvel and player
+		player.xvel = player.x - oldePlayer.x
+		player.yvel = player.y - oldePlayer.y
+		player.zvel = player.z - oldePlayer.z
+		player.grounded = (player.yvel == 0 and oldePlayer.y >= player.y)
+		player.pitch = ? --finish
+		player.yaw = ? --finish
+	end
+end
