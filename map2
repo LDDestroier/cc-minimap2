@@ -10,6 +10,27 @@ local scr_x, scr_y = term.getSize()
 local defaultTimeout = 3
 local port = gps.CHANNEL_GPS
 
+local map = {
+	waypoints = {},		--list of all waypoints with their coordinates, names, colors, and descriptions.
+	scale = 1,		--zoom scale factor for rendering
+	rotate = 0,		--screen rotation for rendering
+	skewX = 1,		--screen skewing on the X axis
+	skewZ = 1,		--screen skewing on the Z axis
+	useBlittle = false,	--whether or not to use Bomb Bloke's BLittle API for more detailed rendering
+	drawMode = false,	--if true, can draw on the screen for making "maps" on the minimap.
+}
+
+local palate = {
+	bg = colors.gray,
+	tx = colors.white,
+}
+
+local geomap = {
+	image = nil,
+	anchorX = 0,
+	anchorZ = 0,
+}
+
 local tsv = function(visible)
 	if term.current().setVisible then
 		term.current().setVisible(visible)
@@ -62,30 +83,102 @@ local copyTable = function(tbl)
 	return output
 end
 
+local getDotsInLine = function( startX, startY, endX, endY ) --stolen from the paintutils API...hehehe
+	local out = {}
+	startX = math.floor(startX)
+	startY = math.floor(startY)
+	endX = math.floor(endX)
+	endY = math.floor(endY)
+	if startX == endX and startY == endY then
+		out = {{x=startX,y=startY}}
+		return out
+	end
+	local minX = math.min( startX, endX )
+	if minX == startX then
+		minY = startY
+		maxX = endX
+		maxY = endY
+	else
+		minY = endY
+		maxX = startX
+		maxY = startY
+	end
+	local xDiff = maxX - minX
+	local yDiff = maxY - minY
+	if xDiff > math.abs(yDiff) then
+		local y = minY
+		local dy = yDiff / xDiff
+		for x=minX,maxX do
+			out[#out+1] = {x=x,y=math.floor(y+0.5)}
+			y = y + dy
+		end
+	else
+		local x = minX
+		local dx = xDiff / yDiff
+		if maxY >= minY then
+			for y=minY,maxY do
+				out[#out+1] = {x=math.floor(x+0.5),y=y}
+				x = x + dx
+			end
+		else
+			for y=minY,maxY,-1 do
+				out[#out+1] = {x=math.floor(x+0.5),y=y}
+				x = x - dx
+			end
+		end
+	end
+	return out
+end
+
 local player = {
-	x = nil,			actual X position
-	y = nil,			actual Y position
-	z = nil,			actual Z position
-	xvel = nil,			speed in X axis
-	yvel = nil,			speed in Y axis
-	zvel = nil,			speed in Z axis
-	yaw = nil,			0-360 degree X,Z direction of movement
-	pitch = nil,		0-360 degree [X/Z],Y direction of movement
-	grounded = nil,		whether or not you are on ground
+	x = nil,		--actual X position
+	y = nil,		--actual Y position
+	z = nil,		--actual Z position
+	xvel = nil,		--speed in X axis
+	yvel = nil,		--speed in Y axis
+	zvel = nil,		--speed in Z axis
+	xinertia = nil,		--momentum in X axis
+	yinertia = nil,		--momentum in Y axis
+	zinertia = nil,		--momentum in Z axis
+	yaw = nil,		--0-360 degree X,Z direction of movement
+	pitch = nil,		--0-360 degree [X/Z],Y direction of movement
+	grounded = nil,		--whether or not you are on ground
 }
 
-local oldePlayer = copyTable(player)
+local oldePlayer
 
 local updatePlayer = function(timeout)
+	oldePlayer = copyTable(player)
 	player.x, player.y, player.z = gps.locate(timeout or defaultTimeout)
 	if not player.x then
 		player.y, player.z, player.xvel, player.yvel, player.zvel = nil, nil, nil, nil, nil
 	elseif player.xvel and player.yvel and player
+		if not oldePlayer.x then
+			oldePlayer.x, oldePlayer.y, oldePlayer.z = player.x, player.y, player.z
+		end
 		player.xvel = player.x - oldePlayer.x
 		player.yvel = player.y - oldePlayer.y
 		player.zvel = player.z - oldePlayer.z
+		player.xinertia = player.xvel - oldePlayer.xvel
+		player.yinertia = player.yvel - oldePlayer.yvel
+		player.zinertia = player.zvel - oldePlayer.zvel
+		player.speedXZ = math.sqrt((player.x^2)+(player.z^2))
 		player.grounded = (player.yvel == 0 and oldePlayer.y >= player.y)
-		player.pitch = ? --finish
-		player.yaw = ? --finish
+		player.pitch = math.deg(math.atan(player.z / player.x))
+		player.yaw = math.deg(math.atan(player.y / player.speedXZ))
 	end
+	return player, oldePlayer
+end
+
+updatePlayer()
+
+local newWaypoint = function(x, y, z, name, color, desc)
+	table.insert(map.waypoints, {
+		x = x,
+		y = y,
+		z = z,
+		name = name,
+		color = color,
+		desc = desc,
+	})
 end
