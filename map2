@@ -8,12 +8,15 @@ local id = os.getComputerID()
 local modem = {}
 local scr_x, scr_y = term.getSize()
 local defaultTimeout = 3
+local waypointChar = "@"
 local port = gps.CHANNEL_GPS
 
 local map = {
 	waypoints = {},		--list of all waypoints with their coordinates, names, colors, and descriptions.
 	scale = 1,		--zoom scale factor for rendering
 	rotate = 0,		--screen rotation for rendering
+	scrollX = 0,		--how far the screen is scrolled to the right
+	scrollY = 0,		--how far the screen is scrolled downwards
 	skewX = 1,		--screen skewing on the X axis
 	skewZ = 1,		--screen skewing on the Z axis
 	useBlittle = false,	--whether or not to use Bomb Bloke's BLittle API for more detailed rendering
@@ -23,6 +26,7 @@ local map = {
 local palate = {
 	bg = colors.gray,
 	tx = colors.white,
+	waypoint = colors.white,
 }
 
 local geomap = {
@@ -131,9 +135,9 @@ local getDotsInLine = function( startX, startY, endX, endY ) --stolen from the p
 end
 
 local player = {
-	x = nil,		--actual X position
-	y = nil,		--actual Y position
-	z = nil,		--actual Z position
+	x = 0,			--actual X position
+	y = 0,			--actual Y position
+	z = 0,			--actual Z position
 	xvel = nil,		--speed in X axis
 	yvel = nil,		--speed in Y axis
 	zvel = nil,		--speed in Z axis
@@ -182,3 +186,71 @@ local newWaypoint = function(x, y, z, name, color, desc)
 		desc = desc,
 	})
 end
+
+local cwrite(txt,x,y)
+	local cx,cy = term.getCursorPos()
+	term.setCursorPos(((x or scr_x)/2) - (#txt/2), y or cy)
+	return term.write(txt)
+end
+
+local drawWaypointLabel = function(point)
+	term.setTextColor(palate.waypoint)
+	cwrite(point.name,point.x - map.scrollX,point.y - map.scrollY - 1)
+	term.setCursorPos(point.x - map.scrollX,point.y - map.scrollY)
+	term.setTextColor(point.color)
+	term.write(waypointChar:sub(1,1))
+end
+
+renderMinimap = function()
+	term.setBackgroundColor(palate.bg)
+	term.clear()
+	for w = 1, #map.waypoints do
+		drawWaypointLabel(point)
+	end
+	cwrite("*",nil,scr_y/2)
+end
+
+local keysDown, miceDown = {}, {}
+local mode = "minimap"
+
+getInput = function()
+	local evt
+	while true do
+		evt = {os.pullEvent()}
+		if evt[1] == "key" then
+			local key = evt[2]
+			keysDown[key] = true
+			if mode == "minimap" then
+				if key == keys.up then
+					player.z = player.z - 1
+				elseif key == keys.down then
+					player.z = player.z + 1
+				elseif key == keys.left then
+					player.x = player.x - 1
+				elseif key == keys.right then
+					player.x = player.x + 1
+				end
+				if key == keys.q then
+					return
+				end
+			end
+		elseif evt[1] == "key_up" then
+			keysDown[key] = nil
+		elseif evt[1] == "mouse_click" then
+			miceDown[evt[2]] = {evt[3], evt[4]}
+		elseif evt[1] == "mouse_drag" then
+			miceDown[evt[2]] = {evt[3], evt[4]}
+		elseif evt[1] == "mouse_up" then
+			miceDown[evt[2]] = nil
+		end
+	end
+end
+
+local main = function()
+	while true do
+		updatePlayer()
+		renderMinimap()
+	end
+end
+
+parallel.waitForAny(main,getInput)
