@@ -187,8 +187,6 @@ local newWaypoint = function(x, y, z, name, color, desc)
 	})
 end
 
-newWaypoint(0, 128, 0, "Origin", colors.white, "The center of the world.")
-
 local cwrite = function(txt,x,y)
 	local cx,cy = term.getCursorPos()
 	term.setCursorPos(((x or scr_x)/2) - (#txt/2), y or cy)
@@ -215,7 +213,7 @@ end
 local keysDown, miceDown = {}, {}
 local mode = "minimap"
 
-getInput = function()
+local getInput = function()
 	local evt
 	while true do
 		evt = {os.pullEvent()}
@@ -254,5 +252,7 @@ local main = function()
 		renderMinimap()
 	end
 end
+
+newWaypoint(0, 128, 0, "Origin", colors.white, "The center of the world.")
 
 parallel.waitForAny(main,getInput)
