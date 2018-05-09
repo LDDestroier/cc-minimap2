@@ -250,6 +250,8 @@ local main = function()
 	while true do
 		updatePlayer()
 		renderMinimap()
+		term.setCursorPos(1,scr_y)
+		term.write("X:"..player.x.." Y:"..player.y.." Z:"..player.z)
 	end
 end
 
