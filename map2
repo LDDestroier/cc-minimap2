@@ -207,7 +207,7 @@ renderMinimap = function()
 	term.setBackgroundColor(palate.bg)
 	term.clear()
 	for w = 1, #map.waypoints do
-		drawWaypointLabel(point)
+		drawWaypointLabel(map.waypoints[w])
 	end
 	cwrite("*",nil,scr_y/2)
 end
